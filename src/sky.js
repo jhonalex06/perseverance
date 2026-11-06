@@ -57,19 +57,21 @@ export function createSky({ sunDir, fogColor }) {
       p.setXYZ(i, v.x * squash.x, v.y * squash.y, v.z * squash.z);
     }
     g.computeVertexNormals();
+    // Pálidas y algo translúcidas: vistas a través del polvo de un cielo de día
     const m = new THREE.MeshStandardMaterial({
-      map: moonTex, color: 0xb8a898, roughness: 1, fog: false,
-      emissive: 0x3a2a20, emissiveIntensity: 0.6,
+      map: moonTex, color: 0xe6d6c4, roughness: 1, fog: false,
+      emissive: 0xb88a64, emissiveIntensity: 0.55,
+      transparent: true, opacity: 0.8, depthWrite: false,
     });
     const mesh = new THREE.Mesh(g, m);
     mesh.scale.setScalar(radius);
     return mesh;
   };
-  const phobos = makeMoon(13, new THREE.Vector3(1.35, 1.0, 1.1), 3);
-  phobos.position.copy(new THREE.Vector3(0.55, 0.26, -1).normalize().multiplyScalar(800));
+  const phobos = makeMoon(12, new THREE.Vector3(1.35, 1.0, 1.1), 3);
+  phobos.position.copy(new THREE.Vector3(0.42, 0.095, -1).normalize().multiplyScalar(800));
   phobos.rotation.set(0.4, 1.2, 0.2);
-  const deimos = makeMoon(5.5, new THREE.Vector3(1.2, 1.0, 0.9), 8);
-  deimos.position.copy(new THREE.Vector3(0.22, 0.36, -1).normalize().multiplyScalar(800));
+  const deimos = makeMoon(6.5, new THREE.Vector3(1.2, 1.0, 0.9), 8);
+  deimos.position.copy(new THREE.Vector3(0.75, 0.15, -1).normalize().multiplyScalar(800));
   group.add(phobos, deimos);
 
   return { group, uniforms, phobos, deimos };

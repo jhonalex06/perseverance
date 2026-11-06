@@ -42,12 +42,34 @@ export function sample(x, z) {
   return { h, dune: dune * mask };
 }
 
-export const heightAt = (x, z) => sample(x, z).h;
+// Rejilla de alturas de la malla: permite muestrear exactamente la superficie
+// triangulada (no la función analítica), para que rover y huellas no floten ni se hundan.
+let grid = null;
 
-export function createTerrain({ size = 700, segments = 420 } = {}) {
+/** Altura de la superficie en (x, z). Usa la malla si ya existe. */
+export function heightAt(x, z) {
+  if (!grid) return sample(x, z).h;
+  const { size, segments, heights } = grid;
+  const step = size / segments;
+  const gx = THREE.MathUtils.clamp((x + size / 2) / step, 0, segments - 1e-6);
+  const gz = THREE.MathUtils.clamp((z + size / 2) / step, 0, segments - 1e-6);
+  const ix = Math.floor(gx), iz = Math.floor(gz);
+  const fx = gx - ix, fz = gz - iz;
+  const row = segments + 1;
+  const ha = heights[ix + row * iz];          // (ix,   iz)
+  const hb = heights[ix + row * (iz + 1)];    // (ix,   iz+1)
+  const hc = heights[ix + 1 + row * (iz + 1)];// (ix+1, iz+1)
+  const hd = heights[ix + 1 + row * iz];      // (ix+1, iz)
+  // Misma triangulación que PlaneGeometry: (a,b,d) y (b,c,d)
+  if (fx + fz <= 1) return ha + (hd - ha) * fx + (hb - ha) * fz;
+  return hc + (hb - hc) * (1 - fx) + (hd - hc) * (1 - fz);
+}
+
+export function createTerrain({ size = 700, segments = 600 } = {}) {
   const geo = new THREE.PlaneGeometry(size, size, segments, segments);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
+  const heights = new Float32Array(pos.count);
   const colors = new Float32Array(pos.count * 3);
 
   const dark = new THREE.Color(0x6e2e14);
@@ -59,6 +81,7 @@ export function createTerrain({ size = 700, segments = 420 } = {}) {
     const x = pos.getX(i), z = pos.getZ(i);
     const { h, dune } = sample(x, z);
     pos.setY(i, h);
+    heights[i] = h;
 
     const n = fbm(x * 0.03, z * 0.03, 3, 200) * 0.5 + 0.5;
     const t = THREE.MathUtils.clamp(dune * 0.7 + n * 0.45, 0, 1);
@@ -68,6 +91,7 @@ export function createTerrain({ size = 700, segments = 420 } = {}) {
   }
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   geo.computeVertexNormals();
+  grid = { size, segments, heights };
 
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0 });
   const mesh = new THREE.Mesh(geo, mat);

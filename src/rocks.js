@@ -16,7 +16,7 @@ function rockGeometry(seed) {
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   geo.computeVertexNormals();
-  return geo.toNonIndexed();
+  return geo;
 }
 
 export function createRocks({ count = 1800, radius = 170 } = {}) {
@@ -43,11 +43,13 @@ export function createRocks({ count = 1800, radius = 170 } = {}) {
       const a = rand() * Math.PI * 2;
       const r = Math.pow(rand(), 0.7) * radius;
       p.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+      // Zona despejada donde arranca el rover
+      if (p.x * p.x + p.z * p.z < 12 * 12) p.multiplyScalar(12 / Math.max(Math.hypot(p.x, p.z), 0.01) + rand() * 0.5);
       // Más rocas donde no hay dunas altas (zonas de grava)
       const sizeRoll = rand();
       let k = 0.15 + Math.pow(sizeRoll, 6) * 2.8;
       if (i < 6 && vi === 0) { // unas cuantas grandes cerca de la cámara
-        p.set(-14 + i * 6 + rand() * 3, 0, 8 + rand() * 12);
+        p.set((i % 2 ? 1 : -1) * (13 + rand() * 6), 0, -10 + i * 5 + rand() * 3);
         k = 1.2 + rand() * 1.4;
       }
       p.y = heightAt(p.x, p.z) - k * 0.15;
