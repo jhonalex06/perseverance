@@ -6,6 +6,7 @@ import { createSky } from './sky.js';
 import { createDust } from './dust.js';
 import { loadRover, RoverDriver } from './rover.js';
 import { createTracks } from './tracks.js';
+import { createMissionControl } from './mission/panel.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -15,6 +16,9 @@ renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.15;
 document.body.appendChild(renderer.domElement);
+
+// Control de misión: telemetría real de Percy (tecla T para ocultar)
+createMissionControl();
 
 const scene = new THREE.Scene();
 const fogColor = new THREE.Color(0xd39a66); // caramelo polvoriento
