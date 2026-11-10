@@ -1,4 +1,4 @@
-// npm run check — abre la escena en Chrome invisible, comprueba el control de misión (4 datos + tecla T), captura pantalla y lista errores de consola.
+// npm run check — abre la escena en Chrome invisible, comprueba el control de misión (4 datos + tecla T) y la física de conducción, captura pantalla y lista errores de consola.
 // Usa el Chrome del sistema (playwright-core, sin descargar navegadores).
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
@@ -113,24 +113,61 @@ const trasTT = await panelShown();
 if (trasT.estado !== false || trasT.pantalla) errors.push('[mision] La tecla T no ocultó el panel');
 if (trasTT.estado !== true || !trasTT.pantalla) errors.push('[mision] Una segunda T no volvió a mostrar el panel');
 
-// Prueba de conducción: avanza, gira a la izquierda y sigue avanzando
+// Prueba de conducción con la física de Perseverance
+const snap = () => page.evaluate(() => window.__drive?.() ?? null);
+const fisica = [];
+const expect = (ok, msg) => { fisica.push(`${ok ? '✓' : '✗'} ${msg}`); if (!ok) errors.push(`[fisica] ${msg}`); };
+const WHEEL_IDS = ['LF', 'LM', 'LR', 'RF', 'RM', 'RR'];
+const d0 = await snap();
+expect(d0?.fisica?.articulated, 'Ruedas y suspensión separadas en piezas móviles');
+
+// 1) Recto: las 6 ruedas giran igual, ninguna dirigida, a 4,2 cm/s reales
 await page.keyboard.down('KeyW');
 await page.waitForTimeout(4000);
+const d1 = await snap();
+const w1 = d1.fisica.wheels;
+expect(WHEEL_IDS.every((id) => w1[id].turns > d0.fisica.wheels[id].turns + 0.05), 'Recto: las 6 ruedas ruedan hacia delante');
+expect(WHEEL_IDS.every((id) => Math.abs(w1[id].steer) < 1), 'Recto: ruedas sin girar la dirección');
+expect(Math.abs(d1.fisica.realSpeed - 0.042) < 0.003 || d1.fisica.slip > 0, `Recto: velocidad real ${(d1.fisica.realSpeed * 100).toFixed(1)} cm/s (Percy: 4,2 cm/s)`);
+expect(Math.abs(d1.fisica.rocker.L + d1.fisica.rocker.R) < 0.05, `Barra diferencial: rockers opuestos (${d1.fisica.rocker.L}° y ${d1.fisica.rocker.R}°)`);
+
+// 2) Arco a la izquierda: delanteras y traseras giran en sentidos opuestos
 await page.keyboard.down('KeyA');
-await page.waitForTimeout(2500);
-await page.keyboard.up('KeyA');
 await page.waitForTimeout(4000);
+const d2 = await snap();
+const w2 = d2.fisica.wheels;
+expect(w2.LF.steer > 3 && w2.LR.steer < -3 && w2.LM.steer === 0, `Arco: delantera ${w2.LF.steer}°, trasera ${w2.LR.steer}°, central fija`);
+expect(d2.heading > d1.heading, 'Arco: el rumbo gira a la izquierda');
+await page.keyboard.up('KeyA');
+await page.waitForTimeout(3000);
 await page.keyboard.up('KeyW');
+await page.waitForTimeout(1500);
+
+// 3) Giro sobre sí mismo: esquinas en diagonal, sin desplazarse
+const d3a = await snap();
+await page.keyboard.down('KeyA');
+await page.waitForTimeout(4000);
+const d3 = await snap();
+await page.keyboard.up('KeyA');
+const w3 = d3.fisica.wheels;
+const moved = Math.hypot(d3.x - d3a.x, d3.z - d3a.z);
+expect(Math.abs(w3.LF.steer) > 30 && Math.sign(w3.LF.steer) === -Math.sign(w3.LR.steer), `Sobre sí mismo: esquinas en diagonal (${w3.LF.steer}° / ${w3.LR.steer}°)`);
+expect(d3.heading > d3a.heading + 0.05 && moved < 0.05, `Sobre sí mismo: gira ${((d3.heading - d3a.heading) * 57.3).toFixed(0)}° moviéndose ${moved.toFixed(2)} m`);
 await page.waitForTimeout(1500);
 await page.screenshot({ path: path.join(OUT, 'check-drive.png') });
 
-const drive = await page.evaluate(() => window.__drive?.() ?? null);
+const drive = await snap();
 await browser.close();
 if (server) await server.close();
 
 console.log(`\nCarga: ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 console.log(`Capturas: ${path.join(OUT, 'check.png')}  ${path.join(OUT, 'check-drive.png')}`);
-if (drive) console.log('Rover tras conducir:', JSON.stringify(drive));
+if (drive) {
+  const { fisica: f, ...pos } = drive;
+  console.log('Rover tras conducir:', JSON.stringify(pos));
+  console.log(`\nFísica (tiempo ×${f.timeScale}, inclinación ${f.tilt}°, rockers ${f.rocker.L}°/${f.rocker.R}°, bogies ${f.bogie.L}°/${f.bogie.R}°):`);
+  for (const l of fisica) console.log('  ' + l);
+}
 if (mision) {
   console.log(`\nControl de misión (JSON de la NASA: HTTP ${nasa.http}, ${(nasa.bytes / 1024).toFixed(0)} KB, ${nasa.peticiones} petición/es):`);
   for (const d of Object.values(mision.datos)) {

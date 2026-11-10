@@ -7,6 +7,8 @@ import { createDust } from './dust.js';
 import { loadRover, RoverDriver } from './rover.js';
 import { createTracks } from './tracks.js';
 import { createMissionControl } from './mission/panel.js';
+import { createGround } from './ground.js';
+import { createDriveHud } from './driveHud.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -39,7 +41,10 @@ controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI * 0.53;
 controls.minDistance = 4;
 controls.maxDistance = 120;
-scene.add(createRocks());
+const rocks = createRocks();
+scene.add(rocks);
+// Lo que pisan las ruedas: dunas + rocas
+const ground = createGround(heightAt, rocks.userData.instances);
 const sky = createSky({ sunDir, fogColor });
 scene.add(sky.group);
 const dust = createDust();
@@ -77,14 +82,15 @@ window.addEventListener('resize', () => {
 // Rover
 const tracks = createTracks(heightAt);
 scene.add(tracks.mesh);
-let rover = null, driver = null;
+let rover = null, driver = null, driveHud = null;
 const followOffset = new THREE.Vector3();
 const spherical = new THREE.Spherical();
 
 loadRover().then((r) => {
   rover = r;
   scene.add(r.root);
-  driver = new RoverDriver(r.root, heightAt, { heading: Math.PI });
+  driver = new RoverDriver(r.root, r.rig, ground, { heading: Math.PI });
+  driveHud = createDriveHud(driver);
   controls.target.copy(driver.position).add(new THREE.Vector3(0, 1.3, 0));
 
   console.log(`[Perseverance] Tamaño: ${r.size.x.toFixed(2)} × ${r.size.y.toFixed(2)} × ${r.size.z.toFixed(2)} m (ancho × alto × largo), escala ${r.scale.toFixed(4)}`);
@@ -95,6 +101,7 @@ loadRover().then((r) => {
     x: +driver.position.x.toFixed(2), y: +driver.position.y.toFixed(2), z: +driver.position.z.toFixed(2),
     heading: +driver.heading.toFixed(2), speed: +driver.speed.toFixed(2),
     fps: +(frames / timer.getElapsed()).toFixed(1),
+    fisica: driver.state,
   });
   window.__ready = true;
 }).catch((err) => {
@@ -135,6 +142,7 @@ renderer.setAnimationLoop((time) => {
     driver.update(dt);
     const rear = driver.position.clone().addScaledVector(driver.forward, -1.0);
     tracks.update(rear, driver.forward, rover.wheelTrack);
+    driveHud();
     followRover(dt);
   }
   controls.update();

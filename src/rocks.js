@@ -24,6 +24,7 @@ export function createRocks({ count = 1800, radius = 170 } = {}) {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, flatShading: true });
   const variants = [rockGeometry(1.1), rockGeometry(4.7), rockGeometry(9.3)];
   const perVariant = Math.ceil(count / variants.length);
+  const instances = []; // datos de cada roca, para que el rover pueda chocar o subirse
 
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -57,6 +58,7 @@ export function createRocks({ count = 1800, radius = 170 } = {}) {
       q.setFromEuler(e);
       s.set(k * (0.8 + rand() * 0.6), k * (0.7 + rand() * 0.5), k * (0.8 + rand() * 0.6));
       m.compose(p, q, s);
+      instances.push({ x: p.x, y: p.y, z: p.z, sx: s.x, sy: s.y, sz: s.z, yaw: e.y });
       mesh.setMatrixAt(i, m);
       col.copy(base).lerp(alt, rand());
       mesh.setColorAt(i, col);
@@ -65,5 +67,6 @@ export function createRocks({ count = 1800, radius = 170 } = {}) {
     mesh.receiveShadow = true;
     group.add(mesh);
   });
+  group.userData.instances = instances;
   return group;
 }
